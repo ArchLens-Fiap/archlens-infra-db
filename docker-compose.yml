@@ -1,0 +1,395 @@
+services:
+
+  # ============================================================
+  # INFRASTRUCTURE
+  # ============================================================
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: archlens-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: archlens
+      POSTGRES_PASSWORD: archlens_dev_2026
+      POSTGRES_DB: archlens
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/docker/init-scripts/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archlens"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - archlens-net
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: archlens-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: archlens
+      RABBITMQ_DEFAULT_PASS: archlens_dev_2026
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - archlens-net
+
+  minio:
+    image: minio/minio:latest
+    container_name: archlens-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: archlens
+      MINIO_ROOT_PASSWORD: archlens_dev_2026
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - archlens-net
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: archlens-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set archlens http://minio:9000 archlens archlens_dev_2026;
+        mc mb --ignore-existing archlens/archlens-diagrams;
+        mc anonymous set download archlens/archlens-diagrams;
+        exit 0;
+      "
+    networks:
+      - archlens-net
+
+  mongodb:
+    image: mongo:8-noble
+    container_name: archlens-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: archlens
+      MONGO_INITDB_ROOT_PASSWORD: archlens_dev_2026
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - archlens-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: archlens-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass archlens_dev_2026
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "archlens_dev_2026", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - archlens-net
+
+  # ============================================================
+  # APPLICATION SERVICES
+  # ============================================================
+
+  auth-api:
+    build:
+      context: .
+      dockerfile: src/Services/Auth/ArchLens.Auth.Api/Dockerfile
+    container_name: archlens-auth-api
+    ports:
+      - "5120:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=archlens_auth;Username=archlens;Password=archlens_dev_2026"
+      Jwt__Key: "archlens-dev-jwt-secret-key-minimum-32-characters!"
+      Jwt__Issuer: "archlens-auth"
+      Jwt__Audience: "archlens-services"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - archlens-net
+
+  upload-api:
+    build:
+      context: .
+      dockerfile: src/Services/Upload/ArchLens.Upload.Api/Dockerfile
+    container_name: archlens-upload-api
+    ports:
+      - "5066:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - archlens-net
+
+  orchestrator-api:
+    build:
+      context: .
+      dockerfile: src/Services/Orchestrator/ArchLens.Orchestrator.Api/Dockerfile
+    container_name: archlens-orchestrator-api
+    ports:
+      - "5089:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - archlens-net
+
+  notification-api:
+    build:
+      context: .
+      dockerfile: src/Services/Notification/ArchLens.Notification.Api/Dockerfile
+    container_name: archlens-notification-api
+    ports:
+      - "5150:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - archlens-net
+
+  ai-processing:
+    build:
+      context: ./src/AIProcessing
+      dockerfile: Dockerfile
+    container_name: archlens-ai-processing
+    ports:
+      - "8000:8000"
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: archlens
+      RABBITMQ_PASS: archlens_dev_2026
+      REDIS_URL: redis://:archlens_dev_2026@redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: archlens
+      MINIO_SECRET_KEY: archlens_dev_2026
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - archlens-net
+
+  report-api:
+    build:
+      context: .
+      dockerfile: src/Services/Report/ArchLens.Report.Api/Dockerfile
+    container_name: archlens-report-api
+    ports:
+      - "5205:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - archlens-net
+
+  gateway:
+    build:
+      context: .
+      dockerfile: src/ApiGateway/ArchLens.Gateway/Dockerfile
+    container_name: archlens-gateway
+    ports:
+      - "5080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      Jwt__Key: "archlens-dev-jwt-secret-key-minimum-32-characters!"
+      Jwt__Issuer: "archlens-auth"
+      Jwt__Audience: "archlens-services"
+    depends_on:
+      auth-api:
+        condition: service_healthy
+      upload-api:
+        condition: service_healthy
+      orchestrator-api:
+        condition: service_healthy
+      notification-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - archlens-net
+
+  # ============================================================
+  # OBSERVABILITY (profile: obs)
+  # ============================================================
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.115.0
+    container_name: archlens-otel-collector
+    profiles: ["obs"]
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./infra/docker/otel/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    depends_on:
+      - jaeger
+      - loki
+    networks:
+      - archlens-net
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: archlens-prometheus
+    profiles: ["obs"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    networks:
+      - archlens-net
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: archlens-grafana
+    profiles: ["obs"]
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    networks:
+      - archlens-net
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.64
+    container_name: archlens-jaeger
+    profiles: ["obs"]
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+      - "14250:14250"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks:
+      - archlens-net
+
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: archlens-loki
+    profiles: ["obs"]
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+    networks:
+      - archlens-net
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  minio_data:
+  mongodb_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+
+networks:
+  archlens-net:
+    driver: bridge

@@ -1,0 +1,120 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: archlens-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-archlens}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-archlens_dev_2026}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - archlens-net
+
+  minio:
+    image: minio/minio:latest
+    container_name: archlens-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-archlens}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-archlens_dev_2026}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - archlens-net
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: archlens-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set archlens http://minio:9000 $${MINIO_ROOT_USER:-archlens} $${MINIO_ROOT_PASSWORD:-archlens_dev_2026};
+        mc mb --ignore-existing archlens/archlens-diagrams;
+        mc anonymous set download archlens/archlens-diagrams;
+        exit 0;
+      "
+    networks:
+      - archlens-net
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: archlens-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-archlens}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-archlens_dev_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-archlens}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archlens"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - archlens-net
+
+  mongodb:
+    image: mongo:8-noble
+    container_name: archlens-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-archlens}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-archlens_dev_2026}
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - archlens-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: archlens-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD:-archlens_dev_2026}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-archlens_dev_2026}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - archlens-net
+
+volumes:
+  rabbitmq_data:
+  minio_data:
+  postgres_data:
+  mongodb_data:
+  redis_data:
+
+networks:
+  archlens-net:
+    driver: bridge
