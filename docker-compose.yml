@@ -87,8 +87,10 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-archlens}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-archlens_dev_2026}
+      MONGO_INITDB_DATABASE: archlens_reports
     volumes:
       - mongodb_data:/data/db
+      - ./docker/init-scripts/mongo:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
