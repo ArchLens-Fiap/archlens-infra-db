@@ -2,6 +2,8 @@
 
 > **Configurações Docker para Infraestrutura de Serviços**
 > Hackathon FIAP - Fase 5 | Pós-Tech Software Architecture + IA para Devs
+>
+> **Autor:** Rafael Henrique Barbosa Pereira (RM366243)
 
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](https://www.docker.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql)](https://www.postgresql.org/)
@@ -9,8 +11,6 @@
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis)](https://redis.io/)
 [![Prometheus](https://img.shields.io/badge/Prometheus-Monitoring-E6522C?logo=prometheus)](https://prometheus.io/)
 [![Grafana](https://img.shields.io/badge/Grafana-Dashboards-F46800?logo=grafana)](https://grafana.com/)
-
-**Autor:** Rafael Henrique Barbosa Pereira (RM366243)
 
 ---
 
@@ -288,6 +288,4 @@ graph LR
 
 ---
 
-**Autor:** Rafael Henrique Barbosa Pereira (RM366243)
-**Instituição:** FIAP - Pós-Tech Software Architecture + IA para Devs
-**Fase:** 5 - Hackathon (12SOAT + 6IADT)
+**Autor:** Rafael Henrique Barbosa Pereira (RM366243) | FIAP - Pós-Tech Software Architecture + IA para Devs | Fase 5 - Hackathon (12SOAT + 6IADT)
