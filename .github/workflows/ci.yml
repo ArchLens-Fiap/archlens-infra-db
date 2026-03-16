@@ -24,15 +24,26 @@ jobs:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
     needs: [validate]
-    if: env.SONAR_TOKEN != ''
+    if: always()
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
+      - name: Check SONAR_TOKEN
+        id: check-token
+        run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.check-token.outputs.skip != 'true'
         with:
           fetch-depth: 0
 
       - name: SonarCloud Scan
+        if: steps.check-token.outputs.skip != 'true'
         uses: SonarSource/sonarcloud-github-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
