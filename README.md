@@ -1,5 +1,7 @@
 # 🗄️ ArchLens - Infraestrutura de Banco de Dados e Observabilidade
 
+[![CI](https://github.com/ArchLens-Fiap/archlens-infra-db/actions/workflows/ci.yml/badge.svg)](https://github.com/ArchLens-Fiap/archlens-infra-db/actions/workflows/ci.yml) [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=ArchLens-Fiap_archlens-infra-db&metric=alert_status)](https://sonarcloud.io/dashboard?id=ArchLens-Fiap_archlens-infra-db) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ArchLens-Fiap_archlens-infra-db&metric=coverage)](https://sonarcloud.io/dashboard?id=ArchLens-Fiap_archlens-infra-db)
+
 > **Configurações Docker para Infraestrutura de Serviços**
 > Hackathon FIAP - Fase 5 | Pós-Tech Software Architecture + IA para Devs
 >
