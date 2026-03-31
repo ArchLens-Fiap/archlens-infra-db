@@ -120,7 +120,7 @@ services:
   # ============================================================
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.115.0
+    image: otel/opentelemetry-collector-contrib:latest
     container_name: archlens-otel-collector
     profiles: ["obs"]
     command: ["--config=/etc/otel-collector-config.yml"]
@@ -174,7 +174,7 @@ services:
       - archlens-net
 
   jaeger:
-    image: jaegertracing/all-in-one:1.64
+    image: jaegertracing/all-in-one:latest
     container_name: archlens-jaeger
     profiles: ["obs"]
     ports:
