@@ -73,7 +73,7 @@ services:
       /bin/sh -c "
         mc alias set archlens http://minio:9000 $${MINIO_ROOT_USER:-archlens} $${MINIO_ROOT_PASSWORD:-archlens_dev_2026};
         mc mb --ignore-existing archlens/archlens-diagrams;
-        mc anonymous set download archlens/archlens-diagrams;
+        mc anonymous set none archlens/archlens-diagrams;
         exit 0;
       "
     networks:
